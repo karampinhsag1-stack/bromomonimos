@@ -1,0 +1,177 @@
+ADAPTIVE CHECKERS VERSION 3
+
+This package is deployment-ready for Render.
+
+Included:
+- render.yaml for Render Blueprint deployment
+- Node/WebSocket server
+- public game files
+
+What this solves:
+- public web deployment config is included
+- WebSocket-compatible hosting config is included
+- free-tier-compatible setup is included
+
+What still must happen outside this package:
+- the package must be uploaded to your own GitHub account
+- Render must deploy it from that repo
+- after deployment, Render gives the public URL
+
+Once deployed:
+- you open the public URL
+- click Δημιουργία Δωματίου
+- send the 4-digit code to your friend
+- your friend opens the same public URL and joins with the code
+
+{
+  "name": "adaptive-checkers-version-2",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Greek adaptive checkers package with room-code online base",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}
+
+ΕΚΠΑΙΔΕΥΤΙΚΟ ΝΤΑΜΑΣ VERSION 2
+
+Περιλαμβάνει:
+- Ελληνικό UI
+- Μεγαλύτερο board
+- Animation κινήσεων
+- Αυτόματη προαγωγή του τελευταίου πιονιού σε ντάμα
+- Αυτόματη ισοπαλία σε 1 ντάμα εναντίον 1 ντάμα
+- Σωστό κανόνα για τα πιόνια:
+  κινούνται μπροστά ή πλάγια
+  τρώνε μόνο μπροστά ή πλάγια
+  ποτέ προς τα πίσω
+- 4ψήφιο online room-code system
+- Node/WebSocket server
+
+Τοπική εκκίνηση:
+1) Εγκατάσταση Node.js
+2) Άνοιγμα τερματικού μέσα στον φάκελο
+3) npm install
+4) npm start
+5) Άνοιγμα browser στο http://localhost:3000
+
+Για χρήση από διαφορετικά σπίτια / κινητά:
+- Ο server πρέπει να ανέβει σε public host
+- Μετά δίνεις το δημόσιο URL στους φίλους σου
+- Ο ένας δημιουργεί δωμάτιο
+- Ο άλλος μπαίνει με 4ψήφιο κωδικό
+
+services:
+  - type: web
+    name: adaptive-checkers-version-3
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+
+const express = require("express");
+const http = require("http");
+const path = require("path");
+const { WebSocketServer } = require("ws");
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+const rooms = new Map();
+
+app.use(express.static(path.join(__dirname, "public")));
+
+function generateCode() {
+  let code;
+  do {
+    code = Math.floor(1000 + Math.random() * 9000).toString();
+  } while (rooms.has(code));
+  return code;
+}
+
+function safeSend(ws, payload) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(payload));
+}
+
+function cleanupRoom(code) {
+  const room = rooms.get(code);
+  if (!room) return;
+  const hostGone = !room.host || room.host.readyState !== 1;
+  const guestGone = !room.guest || room.guest.readyState !== 1;
+  if (hostGone && guestGone) rooms.delete(code);
+}
+
+wss.on("connection", (ws) => {
+  ws.roomCode = null;
+  ws.role = null;
+
+  ws.on("message", (raw) => {
+    let msg;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch {
+      safeSend(ws, { type: "error", message: "Μη έγκυρο μήνυμα." });
+      return;
+    }
+
+    if (msg.type === "create_room") {
+      const code = generateCode();
+      rooms.set(code, { host: ws, guest: null, state: null });
+      ws.roomCode = code;
+      ws.role = "host";
+      safeSend(ws, { type: "room_created", code });
+      return;
+    }
+
+    if (msg.type === "join_room") {
+      const code = String(msg.code || "");
+      const room = rooms.get(code);
+      if (!room) {
+        safeSend(ws, { type: "error", message: "Το δωμάτιο δεν βρέθηκε." });
+        return;
+      }
+      if (room.guest && room.guest.readyState === 1) {
+        safeSend(ws, { type: "error", message: "Το δωμάτιο είναι γεμάτο." });
+        return;
+      }
+      room.guest = ws;
+      ws.roomCode = code;
+      ws.role = "guest";
+      safeSend(ws, { type: "room_joined", code });
+      safeSend(room.host, { type: "guest_joined", code });
+      return;
+    }
+
+    if (msg.type === "game_state") {
+      const room = rooms.get(ws.roomCode);
+      if (!room) return;
+      room.state = msg.state;
+      const peer = ws.role === "host" ? room.guest : room.host;
+      safeSend(peer, { type: "game_state", state: msg.state });
+      return;
+    }
+  });
+
+  ws.on("close", () => {
+    const code = ws.roomCode;
+    if (!code || !rooms.has(code)) return;
+    const room = rooms.get(code);
+    const peer = ws.role === "host" ? room.guest : room.host;
+    safeSend(peer, { type: "peer_left" });
+    if (ws.role === "host") room.host = null;
+    if (ws.role === "guest") room.guest = null;
+    cleanupRoom(code);
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Adaptive Checkers Version 2 server listening on port ${PORT}`);
+});

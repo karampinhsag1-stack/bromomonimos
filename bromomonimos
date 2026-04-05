@@ -1,28 +1,3 @@
-ADAPTIVE CHECKERS VERSION 3
-
-This package is deployment-ready for Render.
-
-Included:
-- render.yaml for Render Blueprint deployment
-- Node/WebSocket server
-- public game files
-
-What this solves:
-- public web deployment config is included
-- WebSocket-compatible hosting config is included
-- free-tier-compatible setup is included
-
-What still must happen outside this package:
-- the package must be uploaded to your own GitHub account
-- Render must deploy it from that repo
-- after deployment, Render gives the public URL
-
-Once deployed:
-- you open the public URL
-- click Δημιουργία Δωματίου
-- send the 4-digit code to your friend
-- your friend opens the same public URL and joins with the code
-
 {
   "name": "adaptive-checkers-version-2",
   "version": "2.0.0",
@@ -37,34 +12,6 @@ Once deployed:
     "ws": "^8.18.0"
   }
 }
-
-ΕΚΠΑΙΔΕΥΤΙΚΟ ΝΤΑΜΑΣ VERSION 2
-
-Περιλαμβάνει:
-- Ελληνικό UI
-- Μεγαλύτερο board
-- Animation κινήσεων
-- Αυτόματη προαγωγή του τελευταίου πιονιού σε ντάμα
-- Αυτόματη ισοπαλία σε 1 ντάμα εναντίον 1 ντάμα
-- Σωστό κανόνα για τα πιόνια:
-  κινούνται μπροστά ή πλάγια
-  τρώνε μόνο μπροστά ή πλάγια
-  ποτέ προς τα πίσω
-- 4ψήφιο online room-code system
-- Node/WebSocket server
-
-Τοπική εκκίνηση:
-1) Εγκατάσταση Node.js
-2) Άνοιγμα τερματικού μέσα στον φάκελο
-3) npm install
-4) npm start
-5) Άνοιγμα browser στο http://localhost:3000
-
-Για χρήση από διαφορετικά σπίτια / κινητά:
-- Ο server πρέπει να ανέβει σε public host
-- Μετά δίνεις το δημόσιο URL στους φίλους σου
-- Ο ένας δημιουργεί δωμάτιο
-- Ο άλλος μπαίνει με 4ψήφιο κωδικό
 
 services:
   - type: web

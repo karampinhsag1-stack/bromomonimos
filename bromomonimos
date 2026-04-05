@@ -1,3 +1,28 @@
+ADAPTIVE CHECKERS VERSION 3
+
+This package is deployment-ready for Render.
+
+Included:
+- render.yaml for Render Blueprint deployment
+- Node/WebSocket server
+- public game files
+
+What this solves:
+- public web deployment config is included
+- WebSocket-compatible hosting config is included
+- free-tier-compatible setup is included
+
+What still must happen outside this package:
+- the package must be uploaded to your own GitHub account
+- Render must deploy it from that repo
+- after deployment, Render gives the public URL
+
+Once deployed:
+- you open the public URL
+- click Δημιουργία Δωματίου
+- send the 4-digit code to your friend
+- your friend opens the same public URL and joins with the code
+
 {
   "name": "adaptive-checkers-version-2",
   "version": "2.0.0",
@@ -150,3 +175,1221 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Adaptive Checkers Version 2 server listening on port ${PORT}`);
 });
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Εκπαιδευτικό Ντάμας</title>
+  <style>
+    :root{
+      --bg:#0f1420;
+      --bg2:#131a28;
+      --panel:rgba(255,255,255,.05);
+      --line:rgba(255,255,255,.10);
+      --text:#eff4ff;
+      --muted:#a8b5cc;
+      --light:#eadfce;
+      --dark:#7f5a47;
+      --accent:#6ee7b7;
+      --accent2:#60a5fa;
+      --warn:#fbbf24;
+      --danger:#f87171;
+      --shadow:0 18px 40px rgba(0,0,0,.30);
+      --radius:20px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:radial-gradient(circle at top,#1a2438 0%,#0b1018 60%);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    body{padding:16px}
+    .app{max-width:1500px;margin:0 auto;display:grid;grid-template-columns:minmax(420px,980px) minmax(300px,1fr);gap:20px}
+    .panel,.board-shell{background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.03));border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);overflow:hidden}
+    .top{padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid var(--line)}
+    h1{margin:0;font-size:clamp(1.1rem,2vw,1.5rem)}
+    .sub{color:var(--muted);font-size:.95rem;margin-top:4px}
+    .badge{padding:10px 14px;border-radius:999px;background:rgba(110,231,183,.12);color:#baffdf;font-weight:700;font-size:.92rem;white-space:nowrap}
+    .board-area{padding:22px}
+    .board{position:relative;width:100%;aspect-ratio:1/1;display:grid;grid-template-columns:repeat(8,1fr);border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.14);touch-action:manipulation}
+    .square{position:relative;display:flex;align-items:center;justify-content:center;user-select:none;min-height:62px}
+    .light{background:var(--light)}
+    .dark{background:var(--dark)}
+    .sq-label{position:absolute;left:6px;top:4px;font-size:.64rem;color:rgba(255,255,255,.38);pointer-events:none}
+    .piece{position:relative;width:76%;height:76%;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1.15rem;cursor:pointer;box-shadow:inset 0 4px 10px rgba(255,255,255,.2), inset 0 -8px 16px rgba(0,0,0,.28), 0 8px 14px rgba(0,0,0,.25);border:2px solid rgba(255,255,255,.18);transition:transform .12s ease, box-shadow .12s ease;overflow:hidden}
+    .piece:hover{transform:translateY(-1px)}
+    .red{background:linear-gradient(180deg,#ff8a8a,#c53d3d)}
+    .black{background:linear-gradient(180deg,#667085,#1f2937)}
+    .king::after{content:"👑";position:absolute;left:50%;top:50%;transform:translate(-50%,-54%);font-size:1.45rem;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7));pointer-events:none}
+    .selected::before,.hint::before,.lastmove::before,.capturehint::before{
+      content:"";position:absolute;inset:6%;border-radius:16px;pointer-events:none
+    }
+    .selected::before{border:3px solid var(--accent2);box-shadow:0 0 0 4px rgba(96,165,250,.18)}
+    .hint::before{border:3px dashed var(--accent)}
+    .capturehint::before{border:3px dashed var(--warn)}
+    .lastmove::before{border:3px solid rgba(255,255,255,.52)}
+    .dot{position:absolute;width:18px;height:18px;border-radius:50%;background:rgba(110,231,183,.9);box-shadow:0 0 0 8px rgba(110,231,183,.16)}
+    .capture-dot{background:rgba(251,191,36,.96);box-shadow:0 0 0 8px rgba(251,191,36,.18)}
+    .side{padding:16px;display:grid;gap:14px}
+    .card{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:18px;padding:14px}
+    .card h2,.card h3{margin:0 0 10px 0;font-size:1rem}
+    .controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    button,select{width:100%;border:none;border-radius:14px;padding:12px 12px;font:inherit}
+    button{cursor:pointer;background:#243044;color:var(--text);font-weight:700;border:1px solid rgba(255,255,255,.08)}
+    button.primary{background:linear-gradient(180deg,#34d399,#059669);color:#052a1e}
+    button.secondary{background:linear-gradient(180deg,#60a5fa,#2563eb)}
+    button.ghost{background:rgba(255,255,255,.05)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    select{background:#1d2737;color:var(--text);border:1px solid rgba(255,255,255,.08)}
+    .row{display:flex;gap:8px;align-items:center}
+    .pill{display:inline-flex;align-items:center;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.06);font-size:.86rem;color:var(--muted)}
+    .meter{height:10px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden}
+    .bar{height:100%;background:linear-gradient(90deg,#60a5fa,#6ee7b7);width:0%}
+    .small{font-size:.9rem;color:var(--muted);line-height:1.45}
+    .log{max-height:240px;overflow:auto;display:grid;gap:8px}
+    .log-item{padding:9px 10px;border-radius:12px;background:rgba(255,255,255,.04);font-size:.9rem;line-height:1.35}
+    .moves{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.9rem}
+    .moves div{padding:8px 9px;border-radius:10px;background:rgba(255,255,255,.04)}
+    .footer-note{padding:0 2px 2px;color:var(--muted);font-size:.85rem}
+    
+    .floating-piece{
+      position:absolute;
+      width:calc(100% / 8);
+      aspect-ratio:1/1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+      z-index:12;
+      transition:left .24s ease, top .24s ease;
+    }
+
+    @media (max-width: 940px){
+      .app{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="board-shell">
+      <div class="top">
+        <div>
+          <h1>Εκπαιδευτικό Ντάμας</h1>
+          <div class="sub">Έκδοση εκμάθησης με ορθογώνια κίνηση, υποχρεωτικά φαγώματα, μέγιστη λήψη και προσαρμοστικές συμβουλές.</div>
+        </div>
+        <div class="badge" id="turnBadge">Η σειρά σου</div>
+      </div>
+      <div class="board-area">
+        <div class="board" id="board"></div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="side">
+        <div class="card">
+          <h2>Έλεγχοι</h2>
+          <div class="controls">
+            <button class="primary" id="newGameBtn">Νέα Παρτίδα</button>
+            <button class="ghost" id="undoBtn">Αναίρεση</button>
+            <button class="secondary" id="suggestBtn">Πρόταση Κίνησης</button>
+            <button class="ghost" id="toggleHintsBtn">Βοήθεια: Ναι</button>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <select id="difficulty">
+              <option value="1">Δυσκολία AI: Εύκολη</option>
+              <option value="2" selected>Δυσκολία AI: Μεσαία</option>
+              <option value="3">Δυσκολία AI: Δύσκολη</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Προπονητής</h3>
+          <div id="coachText" class="small">Tap a piece to begin. You play Red. Suggested moves are optional, not handcuffs.</div>
+        </div>
+
+        <div class="card">
+          <h3>Προφίλ Προσαρμοστικής AI</h3>
+          <div class="small" id="profileText">Learning your opening habits...</div>
+          <div style="margin-top:10px" class="meter"><div id="adaptBar" class="bar"></div></div>
+          <div class="small" style="margin-top:8px" id="adaptText">Adaptation strength: 0%</div>
+        </div>
+
+        <div class="card">
+          <h3>Παρακολούθηση Συνηθειών</h3>
+          <div class="moves">
+            <div id="leftBias">Left-side starts: 0</div>
+            <div id="rightBias">Right-side starts: 0</div>
+            <div id="centerBias">Center starts: 0</div>
+            <div id="captureBias">Early capture rushes: 0</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Ιστορικό Κινήσεων</h3>
+          <div class="log" id="moveLog"></div>
+        </div>
+
+        <div class="footer-note">Πρωτότυπη HTML έκδοση δοκιμής. Λειτουργεί σε υπολογιστή και κινητό.</div>
+      </div>
+    </aside>
+  </div>
+
+
+
+<script>
+(() => {
+  const HUMAN = 'r';
+  const AI = 'b';
+  const boardEl = document.getElementById('board');
+  const turnBadge = document.getElementById('turnBadge');
+  const coachText = document.getElementById('coachText');
+  const moveLogEl = document.getElementById('moveLog');
+  const profileText = document.getElementById('profileText');
+  const adaptBar = document.getElementById('adaptBar');
+  const adaptText = document.getElementById('adaptText');
+  const leftBias = document.getElementById('leftBias');
+  const rightBias = document.getElementById('rightBias');
+  const centerBias = document.getElementById('centerBias');
+  const captureBias = document.getElementById('captureBias');
+  const difficultyEl = document.getElementById('difficulty');
+  const toggleHintsBtn = document.getElementById('toggleHintsBtn');
+
+  const state = {
+    board: [],
+    current: HUMAN,
+    selected: null,
+    legalForSelected: [],
+    suggested: null,
+    hintsOn: true,
+    lastMoveSquares: [],
+    history: [],
+    moveLog: [],
+    winner: null,
+    playerProfile: loadProfile(),
+    currentGameOpeningLogged: false,
+    currentGameEarlyCaptureLogged: false,
+    isAnimating: false
+  };
+
+  function loadProfile() {
+    const saved = localStorage.getItem('adaptive_checkers_profile_v3_gr');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return {
+      games: 0,
+      leftStarts: 0,
+      rightStarts: 0,
+      centerStarts: 0,
+      earlyCaptureRushes: 0,
+      openings: {},
+      adaptation: 0
+    };
+  }
+
+  function saveProfile() {
+    localStorage.setItem('adaptive_checkers_profile_v3_gr', JSON.stringify(state.playerProfile));
+  }
+
+  function cloneBoard(board) {
+    return board.map(row => row.map(cell => cell ? { ...cell } : null));
+  }
+
+  function initialBoard() {
+    const b = Array.from({ length: 8 }, () => Array(8).fill(null));
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 8; c++) {
+        if ((r + c) % 2 === 1) b[r][c] = { color: AI, king: false };
+      }
+    }
+    for (let r = 5; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if ((r + c) % 2 === 1) b[r][c] = { color: HUMAN, king: false };
+      }
+    }
+    return b;
+  }
+
+  function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
+
+  function pieceDirs(piece, capture = false) {
+    if (piece.king) return [[1,0],[-1,0],[0,1],[0,-1]];
+    return piece.color === HUMAN ? [[-1,0],[0,-1],[0,1]] : [[1,0],[0,-1],[0,1]];
+  }
+
+  function promoteIfNeeded(piece, row) {
+    if (piece.king) return piece;
+    if (piece.color === HUMAN && row === 0) return { ...piece, king: true };
+    if (piece.color === AI && row === 7) return { ...piece, king: true };
+    return piece;
+  }
+
+  function forceLastPieceToKing(board) {
+    let humanPieces = [];
+    let aiPieces = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (!p) continue;
+        if (p.color === HUMAN) humanPieces.push([r,c,p]);
+        else aiPieces.push([r,c,p]);
+      }
+    }
+    if (humanPieces.length === 1 && !humanPieces[0][2].king) {
+      const [r,c,p] = humanPieces[0];
+      board[r][c] = { ...p, king: true };
+    }
+    if (aiPieces.length === 1 && !aiPieces[0][2].king) {
+      const [r,c,p] = aiPieces[0];
+      board[r][c] = { ...p, king: true };
+    }
+    return board;
+  }
+
+  function applySequence(board, sequence) {
+    const next = cloneBoard(board);
+    const [fr, fc] = sequence.path[0];
+    let piece = { ...next[fr][fc] };
+    next[fr][fc] = null;
+    for (const [cr, cc] of sequence.captures) next[cr][cc] = null;
+    const [tr, tc] = sequence.path[sequence.path.length - 1];
+    piece = promoteIfNeeded(piece, tr);
+    next[tr][tc] = piece;
+    forceLastPieceToKing(next);
+    return next;
+  }
+
+  function simpleMovesForPiece(board, r, c) {
+    const piece = board[r][c];
+    if (!piece) return [];
+    const moves = [];
+    if (piece.king) {
+      for (const [dr, dc] of pieceDirs(piece, false)) {
+        let nr = r + dr, nc = c + dc;
+        while (inBounds(nr, nc) && !board[nr][nc]) {
+          moves.push({ from:[r,c], to:[nr,nc], path:[[r,c],[nr,nc]], captures:[], isCapture:false });
+          nr += dr; nc += dc;
+        }
+      }
+    } else {
+      for (const [dr, dc] of pieceDirs(piece, false)) {
+        const nr = r + dr, nc = c + dc;
+        if (inBounds(nr, nc) && !board[nr][nc]) {
+          moves.push({ from:[r,c], to:[nr,nc], path:[[r,c],[nr,nc]], captures:[], isCapture:false });
+        }
+      }
+    }
+    return moves;
+  }
+
+  function captureSequencesForPiece(board, r, c) {
+    const piece = board[r][c];
+    if (!piece) return [];
+    const sequences = [];
+    const startPiece = { ...piece };
+
+    function recurse(currBoard, cr, cc, currPiece, path, captures) {
+      let found = false;
+      const dirs = pieceDirs(currPiece, true);
+
+      if (currPiece.king) {
+        for (const [dr, dc] of dirs) {
+          let nr = cr + dr, nc = cc + dc;
+          let enemy = null;
+          while (inBounds(nr, nc)) {
+            const cell = currBoard[nr][nc];
+            if (!cell) {
+              if (enemy) {
+                found = true;
+                const nextBoard = cloneBoard(currBoard);
+                nextBoard[cr][cc] = null;
+                nextBoard[enemy[0]][enemy[1]] = null;
+                let movedPiece = { ...currPiece };
+                movedPiece = promoteIfNeeded(movedPiece, nr);
+                nextBoard[nr][nc] = movedPiece;
+                recurse(nextBoard, nr, nc, movedPiece, [...path, [nr, nc]], [...captures, enemy]);
+              }
+              nr += dr; nc += dc;
+              continue;
+            }
+            if (cell.color === currPiece.color) break;
+            if (enemy) break;
+            enemy = [nr, nc];
+            nr += dr; nc += dc;
+          }
+        }
+      } else {
+        for (const [dr, dc] of dirs) {
+          const mr = cr + dr, mc = cc + dc;
+          const lr = cr + dr * 2, lc = cc + dc * 2;
+          if (!inBounds(lr, lc)) continue;
+          const mid = currBoard[mr]?.[mc];
+          if (mid && mid.color !== currPiece.color && !currBoard[lr][lc]) {
+            found = true;
+            const nextBoard = cloneBoard(currBoard);
+            nextBoard[cr][cc] = null;
+            nextBoard[mr][mc] = null;
+            let movedPiece = { ...currPiece };
+            movedPiece = promoteIfNeeded(movedPiece, lr);
+            nextBoard[lr][lc] = movedPiece;
+            recurse(nextBoard, lr, lc, movedPiece, [...path, [lr, lc]], [...captures, [mr, mc]]);
+          }
+        }
+      }
+
+      if (!found && captures.length) {
+        sequences.push({
+          from: path[0],
+          to: path[path.length - 1],
+          path,
+          captures,
+          isCapture: true
+        });
+      }
+    }
+
+    recurse(board, r, c, startPiece, [[r, c]], []);
+    return sequences;
+  }
+
+  function allMoves(board, color) {
+    const quiet = [];
+    let captures = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (!p || p.color !== color) continue;
+        captures = captures.concat(captureSequencesForPiece(board, r, c));
+      }
+    }
+    if (captures.length) {
+      const maxCaps = Math.max(...captures.map(m => m.captures.length));
+      return captures.filter(m => m.captures.length === maxCaps);
+    }
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (!p || p.color !== color) continue;
+        quiet.push(...simpleMovesForPiece(board, r, c));
+      }
+    }
+    return quiet;
+  }
+
+  function countPieces(board) {
+    let r = 0, b = 0, rk = 0, bk = 0;
+    for (const row of board) {
+      for (const p of row) {
+        if (!p) continue;
+        if (p.color === HUMAN) { r++; if (p.king) rk++; }
+        else { b++; if (p.king) bk++; }
+      }
+    }
+    return { r, b, rk, bk };
+  }
+
+  function isTiePosition(board) {
+    const counts = countPieces(board);
+    return counts.r === 1 && counts.b === 1 && counts.rk === 1 && counts.bk === 1;
+  }
+
+  function evaluate(board, colorPerspective = AI) {
+    const counts = countPieces(board);
+    if (isTiePosition(board)) return 0;
+
+    let score = (counts.b - counts.r) * 100 + (counts.bk - counts.rk) * 90;
+    const aiMoves = allMoves(board, AI);
+    const humanMoves = allMoves(board, HUMAN);
+    score += (aiMoves.length - humanMoves.length) * 5;
+
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (!p) continue;
+        const sign = p.color === AI ? 1 : -1;
+        if (r >= 2 && r <= 5 && c >= 2 && c <= 5) score += sign * 7;
+        if (p.king) score += sign * 8;
+        if (!p.king) {
+          const progress = p.color === AI ? r : 7 - r;
+          score += sign * progress * 2;
+        }
+      }
+    }
+
+    const adapt = state.playerProfile.adaptation || 0;
+    const pref = dominantOpening();
+    if (adapt > 0) {
+      if (pref === 'left') {
+        for (let r = 0; r < 8; r++) for (let c = 0; c < 3; c++) if (board[r][c]?.color === AI) score += 0.18 * adapt;
+      } else if (pref === 'right') {
+        for (let r = 0; r < 8; r++) for (let c = 5; c < 8; c++) if (board[r][c]?.color === AI) score += 0.18 * adapt;
+      } else if (pref === 'center') {
+        for (let r = 2; r <= 5; r++) for (let c = 2; c <= 5; c++) if (board[r][c]?.color === AI) score += 0.18 * adapt;
+      }
+      const aiCaps = aiMoves.filter(m => m.isCapture).length;
+      if (state.playerProfile.earlyCaptureRushes > 1) score += aiCaps * (adapt * 0.25);
+    }
+
+    return colorPerspective === AI ? score : -score;
+  }
+
+  function minimax(board, depth, alpha, beta, maximizing) {
+    const mover = maximizing ? AI : HUMAN;
+    const moves = allMoves(board, mover);
+
+    if (depth === 0 || !moves.length || isTiePosition(board)) {
+      if (isTiePosition(board)) return { score: 0 };
+      if (!moves.length) return { score: maximizing ? -99999 : 99999 };
+      return { score: evaluate(board, AI) };
+    }
+
+    if (maximizing) {
+      let best = { score: -Infinity, move: moves[0] };
+      for (const move of moves) {
+        const next = applySequence(board, move);
+        const val = minimax(next, depth - 1, alpha, beta, false).score;
+        if (val > best.score) best = { score: val, move };
+        alpha = Math.max(alpha, val);
+        if (beta <= alpha) break;
+      }
+      return best;
+    } else {
+      let best = { score: Infinity, move: moves[0] };
+      for (const move of moves) {
+        const next = applySequence(board, move);
+        const val = minimax(next, depth - 1, alpha, beta, true).score;
+        if (val < best.score) best = { score: val, move };
+        beta = Math.min(beta, val);
+        if (beta <= alpha) break;
+      }
+      return best;
+    }
+  }
+
+  function aiChooseMove() {
+    const depth = Number(difficultyEl.value);
+    const moves = allMoves(state.board, AI);
+    if (!moves.length) return null;
+
+    const scored = moves.map(move => {
+      const next = applySequence(state.board, move);
+      const score = minimax(next, Math.max(0, depth - 1), -Infinity, Infinity, false).score;
+      return { move, score };
+    }).sort((a, b) => b.score - a.score);
+
+    const adapt = state.playerProfile.adaptation || 0;
+    if (scored.length > 1 && adapt > 10) {
+      const topN = Math.min(3, scored.length);
+      const weighted = scored.slice(0, topN).map((x, i) => ({ ...x, weight: topN - i + adapt / 50 }));
+      const total = weighted.reduce((s, x) => s + x.weight, 0);
+      let roll = Math.random() * total;
+      for (const w of weighted) {
+        roll -= w.weight;
+        if (roll <= 0) return w.move;
+      }
+    }
+    return scored[0].move;
+  }
+
+  function humanSuggestion() {
+    const moves = allMoves(state.board, HUMAN);
+    if (!moves.length) return null;
+    let best = null;
+    let bestScore = Infinity;
+    for (const move of moves) {
+      const next = applySequence(state.board, move);
+      const score = minimax(next, 1, -Infinity, Infinity, true).score;
+      if (score < bestScore) {
+        bestScore = score;
+        best = move;
+      }
+    }
+    return best;
+  }
+
+  function squareName(r, c) {
+    return String.fromCharCode(97 + c) + (8 - r);
+  }
+
+  function render() {
+    boardEl.innerHTML = '';
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const sq = document.createElement('div');
+        sq.className = 'square ' + (((r + c) % 2 === 0) ? 'light' : 'dark');
+        sq.dataset.r = r;
+        sq.dataset.c = c;
+
+        if (state.selected && state.selected[0] === r && state.selected[1] === c) sq.classList.add('selected');
+        if (state.lastMoveSquares.some(([lr, lc]) => lr === r && lc === c)) sq.classList.add('lastmove');
+
+        if (state.suggested) {
+          const path = state.suggested.path;
+          const isOnPath = path.some(([pr, pc]) => pr === r && pc === c);
+          if (isOnPath) sq.classList.add(state.suggested.isCapture ? 'capturehint' : 'hint');
+        }
+
+        const label = document.createElement('div');
+        label.className = 'sq-label';
+        label.textContent = squareName(r, c);
+        sq.appendChild(label);
+
+        const legal = state.legalForSelected.find(m => m.to[0] === r && m.to[1] === c);
+        if (legal) {
+          const dot = document.createElement('div');
+          dot.className = legal.isCapture ? 'dot capture-dot' : 'dot';
+          sq.appendChild(dot);
+        }
+
+        const piece = state.board[r][c];
+        if (piece) {
+          const p = document.createElement('div');
+          p.className = 'piece ' + (piece.color === HUMAN ? 'red' : 'black') + (piece.king ? ' king' : '');
+          sq.appendChild(p);
+        }
+        sq.addEventListener('click', onSquareClick);
+        boardEl.appendChild(sq);
+      }
+    }
+
+    if (state.winner === 'tie') turnBadge.textContent = 'ΙΣΟΠΑΛΙΑ';
+    else if (state.winner) turnBadge.textContent = state.winner === HUMAN ? 'Νικάς 🎉' : 'Νικά η AI';
+    else turnBadge.textContent = state.current === HUMAN ? 'Η σειρά σου' : 'Σκέφτεται η AI';
+
+    renderLog();
+    renderProfile();
+  }
+
+  function renderLog() {
+    moveLogEl.innerHTML = '';
+    if (!state.moveLog.length) {
+      const div = document.createElement('div');
+      div.className = 'log-item';
+      div.textContent = 'Δεν υπάρχουν κινήσεις ακόμη.';
+      moveLogEl.appendChild(div);
+      return;
+    }
+    state.moveLog.slice().reverse().forEach(txt => {
+      const div = document.createElement('div');
+      div.className = 'log-item';
+      div.textContent = txt;
+      moveLogEl.appendChild(div);
+    });
+  }
+
+  function dominantOpening() {
+    const p = state.playerProfile;
+    const vals = [
+      ['left', p.leftStarts || 0],
+      ['right', p.rightStarts || 0],
+      ['center', p.centerStarts || 0]
+    ].sort((a, b) => b[1] - a[1]);
+    return vals[0][1] > 0 ? vals[0][0] : 'none';
+  }
+
+  function renderProfile() {
+    const p = state.playerProfile;
+    leftBias.textContent = 'Ανοίγματα αριστερά: ' + (p.leftStarts || 0);
+    rightBias.textContent = 'Ανοίγματα δεξιά: ' + (p.rightStarts || 0);
+    centerBias.textContent = 'Ανοίγματα κέντρο: ' + (p.centerStarts || 0);
+    captureBias.textContent = 'Πρόωρα φαγώματα: ' + (p.earlyCaptureRushes || 0);
+
+    const dominant = dominantOpening();
+    let text = 'Η AI μαθαίνει τις συνήθειές σου...';
+    if (dominant !== 'none') {
+      const label = dominant === 'left' ? 'αριστερά' : dominant === 'right' ? 'δεξιά' : 'κέντρο';
+      text = 'Συχνότερο άνοιγμα: ' + label + '. Η AI ετοιμάζει αντίμετρα.';
+    }
+    profileText.textContent = text;
+
+    const adapt = Math.min(100, Math.round(p.adaptation || 0));
+    adaptBar.style.width = adapt + '%';
+    adaptText.textContent = 'Ένταση προσαρμογής: ' + adapt + '%';
+  }
+
+  function pushHistory() {
+    state.history.push({
+      board: cloneBoard(state.board),
+      current: state.current,
+      selected: state.selected ? [...state.selected] : null,
+      legalForSelected: state.legalForSelected.map(m => ({
+        ...m,
+        from: [...m.from],
+        to: [...m.to],
+        path: m.path.map(x => [...x]),
+        captures: m.captures.map(x => [...x])
+      })),
+      suggested: state.suggested ? {
+        ...state.suggested,
+        from: [...state.suggested.from],
+        to: [...state.suggested.to],
+        path: state.suggested.path.map(x => [...x]),
+        captures: state.suggested.captures.map(x => [...x])
+      } : null,
+      lastMoveSquares: state.lastMoveSquares.map(x => [...x]),
+      moveLog: [...state.moveLog],
+      winner: state.winner,
+      isAnimating: false
+    });
+    if (state.history.length > 50) state.history.shift();
+  }
+
+  function resetSelection() {
+    state.selected = null;
+    state.legalForSelected = [];
+  }
+
+  function onSquareClick(e) {
+    if (state.current !== HUMAN || state.winner || state.isAnimating) return;
+    const sq = e.currentTarget;
+    const r = Number(sq.dataset.r), c = Number(sq.dataset.c);
+    const piece = state.board[r][c];
+
+    const target = state.legalForSelected.find(m => m.to[0] === r && m.to[1] === c);
+    if (target) {
+      pushHistory();
+      makeMove(target, HUMAN);
+      return;
+    }
+
+    if (piece && piece.color === HUMAN) {
+      const moves = allMoves(state.board, HUMAN).filter(m => m.from[0] === r && m.from[1] === c);
+      state.selected = [r, c];
+      state.legalForSelected = moves;
+      explainSelection(moves, piece, r, c);
+      render();
+      return;
+    }
+
+    resetSelection();
+    render();
+  }
+
+  function explainSelection(moves, piece, r, c) {
+    if (!moves.length) {
+      coachText.textContent = 'Αυτό το πιόνι δεν έχει νόμιμη κίνηση τώρα.';
+      return;
+    }
+    const captures = moves.filter(m => m.isCapture);
+    if (captures.length) {
+      const maxCaps = captures[0].captures.length;
+      coachText.textContent = 'Ο κανόνας μέγιστης λήψης είναι ενεργός: τα πιόνια τρώνε μόνο μπροστά ή στα πλάγια, ποτέ προς τα πίσω, και πρέπει να διαλέξεις διαδρομή που τρώει τα περισσότερα πιόνια. Αυτό το πιόνι μπορεί να πάρει ' + maxCaps + '.';
+      return;
+    }
+    const lane = c <= 2 ? 'αριστερά' : c >= 5 ? 'δεξιά' : 'κέντρο';
+    coachText.textContent = `Επέλεξες ${piece.king ? 'ντάμα' : 'πιόνι'} στη λωρίδα ${lane}. Τα πιόνια κινούνται μπροστά ή πλάγια, ενώ οι ντάμες πετούν σε ευθείες γραμμές.`;
+  }
+
+  function maybeLogOpening(move) {
+    if (state.currentGameOpeningLogged) return;
+    if (state.moveLog.filter(x => x.startsWith('Εσύ:')).length > 0) return;
+    const c = move.from[1];
+    let lane = 'center';
+    if (c <= 2) lane = 'left';
+    else if (c >= 5) lane = 'right';
+
+    const p = state.playerProfile;
+    if (lane === 'left') p.leftStarts++;
+    else if (lane === 'right') p.rightStarts++;
+    else p.centerStarts++;
+    p.openings[lane] = (p.openings[lane] || 0) + 1;
+    state.currentGameOpeningLogged = true;
+    updateAdaptation();
+    saveProfile();
+  }
+
+  function maybeLogEarlyCapture(move, player) {
+    if (player !== HUMAN) return;
+    const yourMoves = state.moveLog.filter(x => x.startsWith('Εσύ:')).length;
+    if (!state.currentGameEarlyCaptureLogged && yourMoves < 3 && move.isCapture) {
+      state.playerProfile.earlyCaptureRushes++;
+      state.currentGameEarlyCaptureLogged = true;
+      updateAdaptation();
+      saveProfile();
+    }
+  }
+
+  function updateAdaptation() {
+    const p = state.playerProfile;
+    const biasMax = Math.max(p.leftStarts, p.rightStarts, p.centerStarts, 0);
+    const totalStarts = p.leftStarts + p.rightStarts + p.centerStarts;
+    const concentration = totalStarts ? Math.round((biasMax / totalStarts) * 60) : 0;
+    const captureFactor = Math.min(25, p.earlyCaptureRushes * 5);
+    p.adaptation = Math.min(100, concentration + captureFactor);
+  }
+
+  function animateMove(move, movingPiece, callback) {
+    const cellSize = boardEl.clientWidth / 8;
+    const floater = document.createElement('div');
+    floater.className = 'floating-piece';
+    floater.style.left = (move.from[1] * cellSize) + 'px';
+    floater.style.top = (move.from[0] * cellSize) + 'px';
+
+    const p = document.createElement('div');
+    p.className = 'piece ' + (movingPiece.color === HUMAN ? 'red' : 'black') + (movingPiece.king ? ' king' : '');
+    floater.appendChild(p);
+    boardEl.appendChild(floater);
+
+    let step = 1;
+    function go() {
+      if (step >= move.path.length) {
+        floater.remove();
+        callback();
+        return;
+      }
+      const [r, c] = move.path[step];
+      floater.style.left = (c * cellSize) + 'px';
+      floater.style.top = (r * cellSize) + 'px';
+      step++;
+      setTimeout(go, 250);
+    }
+    requestAnimationFrame(() => setTimeout(go, 30));
+  }
+
+  function finalizeAfterMove(player) {
+    forceLastPieceToKing(state.board);
+
+    if (isTiePosition(state.board)) {
+      state.winner = 'tie';
+      coachText.textContent = 'Ισοπαλία. Έμεινε από μία ντάμα σε κάθε πλευρά.';
+      render();
+      return;
+    }
+
+    const humanMoves = allMoves(state.board, HUMAN);
+    const aiMoves = allMoves(state.board, AI);
+
+    if (!humanMoves.length || !aiMoves.length) {
+      state.winner = humanMoves.length ? HUMAN : AI;
+      if (state.winner === HUMAN) {
+        state.playerProfile.games++;
+        saveProfile();
+        coachText.textContent = 'Μπράβο. Κέρδισες την παρτίδα.';
+      } else {
+        coachText.textContent = 'Τέλος παρτίδας. Η AI κέρδισε αυτή τη φορά.';
+      }
+      render();
+      return;
+    }
+
+    state.current = player === HUMAN ? AI : HUMAN;
+    render();
+
+    if (player === HUMAN) {
+      const suggestion = humanSuggestion();
+      if (state.hintsOn && suggestion) {
+        state.suggested = suggestion;
+        coachText.textContent = explainSuggestion(suggestion);
+        render();
+      }
+      setTimeout(aiTurn, 280);
+    } else {
+      state.current = HUMAN;
+      if (state.hintsOn) {
+        const suggestion = humanSuggestion();
+        state.suggested = suggestion;
+        coachText.textContent = suggestion ? explainSuggestion(suggestion) : 'Η σειρά σου.';
+      } else {
+        coachText.textContent = 'Η σειρά σου.';
+      }
+      render();
+    }
+  }
+
+  function makeMove(move, player) {
+    maybeLogOpening(move);
+    maybeLogEarlyCapture(move, player);
+
+    const movingPiece = { ...state.board[move.from[0]][move.from[1]] };
+    state.isAnimating = true;
+    resetSelection();
+    state.suggested = null;
+    render();
+
+    animateMove(move, movingPiece, () => {
+      state.board = applySequence(state.board, move);
+      state.lastMoveSquares = move.path;
+      const who = player === HUMAN ? 'Εσύ' : 'AI';
+      const captureText = move.isCapture ? ` x${move.captures.length}` : '';
+      const pathText = move.path.map(([r, c]) => squareName(r, c)).join(' → ');
+      state.moveLog.push(`${who}: ${pathText}${captureText}`);
+
+      state.isAnimating = false;
+      finalizeAfterMove(player);
+    });
+  }
+
+  function explainSuggestion(move) {
+    const [fr, fc] = move.from;
+    const [tr, tc] = move.to;
+    if (move.isCapture) {
+      return `Πρόταση προπονητή: ${squareName(fr, fc)} → ${squareName(tr, tc)}. Αυτή η διαδρομή τρώει ${move.captures.length} πιόνι${move.captures.length > 1 ? 'α' : ''} και ακολουθεί τον κανόνα της μέγιστης λήψης.`;
+    }
+    const lane = tc <= 2 ? 'αριστερά' : tc >= 5 ? 'δεξιά' : 'κέντρο';
+    if (lane === 'κέντρο') return `Πρόταση προπονητή: ${squareName(fr, fc)} → ${squareName(tr, tc)}. Ο έλεγχος του κέντρου ανοίγει καθαρότερους δρόμους για μελλοντικά φαγώματα.`;
+    return `Πρόταση προπονητή: ${squareName(fr, fc)} → ${squareName(tr, tc)}. Μια προσεκτική κίνηση στη λωρίδα ${lane}.`;
+  }
+
+  function aiTurn() {
+    if (state.current !== AI || state.winner || state.isAnimating) return;
+    const move = aiChooseMove();
+    if (!move) {
+      state.winner = HUMAN;
+      render();
+      return;
+    }
+    const pref = dominantOpening();
+    const label = pref === 'left' ? 'αριστερή' : pref === 'right' ? 'δεξιά' : pref === 'center' ? 'κεντρική' : 'συνηθισμένη';
+    const adapt = state.playerProfile.adaptation || 0;
+    coachText.textContent = adapt > 10
+      ? `Η AI ετοιμάζει απάντηση. Στόχος εκπαίδευσης: να κοντράρει την ${label} σου τάση.`
+      : 'Η AI διαλέγει κίνηση.';
+    render();
+    setTimeout(() => makeMove(move, AI), 260);
+  }
+
+  function newGame() {
+    state.board = initialBoard();
+    state.current = HUMAN;
+    state.selected = null;
+    state.legalForSelected = [];
+    state.suggested = humanSuggestion();
+    state.lastMoveSquares = [];
+    state.history = [];
+    state.moveLog = [];
+    state.winner = null;
+    state.currentGameOpeningLogged = false;
+    state.currentGameEarlyCaptureLogged = false;
+    state.isAnimating = false;
+    coachText.textContent = 'Οι κανόνες είναι ενεργοί: τα πιόνια κινούνται μπροστά ή πλάγια, τρώνε μόνο μπροστά και στα πλάγια, ποτέ προς τα πίσω, και πρέπει να επιλέγεται η διαδρομή με τις περισσότερες λήψεις.';
+    render();
+  }
+
+  document.getElementById('newGameBtn').addEventListener('click', newGame);
+
+  document.getElementById('undoBtn').addEventListener('click', () => {
+    if (!state.history.length || state.isAnimating) return;
+    const prev = state.history.pop();
+    Object.assign(state, prev);
+    coachText.textContent = 'Η τελευταία κίνηση αναιρέθηκε.';
+    render();
+  });
+
+  document.getElementById('suggestBtn').addEventListener('click', () => {
+    if (state.winner || state.current !== HUMAN || state.isAnimating) return;
+    state.suggested = humanSuggestion();
+    coachText.textContent = state.suggested ? explainSuggestion(state.suggested) : 'Δεν υπάρχει διαθέσιμη πρόταση.';
+    render();
+  });
+
+  toggleHintsBtn.addEventListener('click', () => {
+    state.hintsOn = !state.hintsOn;
+    toggleHintsBtn.textContent = 'Βοήθεια: ' + (state.hintsOn ? 'Ναι' : 'Όχι');
+    if (!state.hintsOn) {
+      state.suggested = null;
+      coachText.textContent = 'Οι βοηθητικές ενδείξεις κρύφτηκαν.';
+    } else {
+      state.suggested = humanSuggestion();
+      coachText.textContent = state.suggested ? explainSuggestion(state.suggested) : 'Οι βοηθητικές ενδείξεις επανήλθαν.';
+    }
+    render();
+  });
+
+  difficultyEl.addEventListener('change', () => {
+    coachText.textContent = 'Η δυσκολία της AI ενημερώθηκε.';
+  });
+
+  newGame();
+})();
+</script>
+
+
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Εκπαιδευτικό Ντάμας Version 2</title>
+  <style>
+    :root {
+      --bg:#0f1420;
+      --panel:rgba(255,255,255,.06);
+      --line:rgba(255,255,255,.10);
+      --text:#eff4ff;
+      --muted:#a8b5cc;
+      --accent:#6ee7b7;
+      --accent2:#60a5fa;
+      --danger:#f87171;
+      --radius:20px;
+      --shadow:0 18px 40px rgba(0,0,0,.30);
+    }
+    *{box-sizing:border-box}
+    body {
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:radial-gradient(circle at top,#1a2438 0%,#0b1018 60%);
+      color:var(--text);
+    }
+    .shell {
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+    .menu {
+      width:min(860px,100%);
+      background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius:28px;
+      box-shadow:var(--shadow);
+      padding:24px;
+    }
+    h1 {margin:0 0 8px;font-size:clamp(1.5rem,3vw,2.2rem)}
+    p {color:var(--muted);line-height:1.5}
+    .grid {
+      margin-top:20px;
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+      gap:16px;
+    }
+    .card {
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:20px;
+      padding:18px;
+    }
+    .card h2 {margin:0 0 10px;font-size:1.05rem}
+    .row {display:flex;gap:10px;flex-wrap:wrap}
+    input {
+      width:100%;
+      border:none;
+      border-radius:14px;
+      padding:12px;
+      background:#1d2737;
+      color:var(--text);
+      border:1px solid rgba(255,255,255,.08);
+      font:inherit;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      text-align:center;
+      font-weight:700;
+    }
+    button {
+      width:100%;
+      border:none;
+      border-radius:14px;
+      padding:12px 14px;
+      font:inherit;
+      font-weight:700;
+      cursor:pointer;
+      background:#243044;
+      color:var(--text);
+      border:1px solid rgba(255,255,255,.08);
+    }
+    button.primary {background:linear-gradient(180deg,#34d399,#059669);color:#052a1e}
+    button.secondary {background:linear-gradient(180deg,#60a5fa,#2563eb)}
+    .status {
+      margin-top:16px;
+      padding:12px 14px;
+      border-radius:14px;
+      background:rgba(255,255,255,.05);
+      border:1px solid var(--line);
+      color:var(--muted);
+      min-height:46px;
+    }
+    .topbar {
+      display:none;
+      padding:14px 18px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background:rgba(0,0,0,.18);
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
+      position:sticky;
+      top:0;
+      z-index:20;
+    }
+    .pill {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:999px;
+      background:rgba(255,255,255,.06);
+      color:var(--text);
+      border:1px solid rgba(255,255,255,.08);
+      font-size:.92rem;
+    }
+    #gameMount {
+      display:none;
+      min-height:100vh;
+    }
+    .note {font-size:.9rem;color:var(--muted)}
+    iframe {
+      width:100%;
+      min-height:100vh;
+      border:none;
+      display:block;
+      background:transparent;
+    }
+  </style>
+</head>
+<body>
+  <div id="menuView" class="shell">
+    <div class="menu">
+      <h1>Εκπαιδευτικό Ντάμας Version 2</h1>
+      <p>Έτοιμη βάση με ελληνικό UI, σωστούς κανόνες, 4ψήφιο online room code, local mode και AI mode.</p>
+
+      <div class="grid">
+        <div class="card">
+          <h2>Τοπικά</h2>
+          <div class="row">
+            <button id="playAiBtn" class="primary">Παίξε με AI</button>
+            <button id="playLocalBtn" class="secondary">2 Παίκτες Τοπικά</button>
+          </div>
+          <p class="note">Άμεση δοκιμή χωρίς internet.</p>
+        </div>
+
+        <div class="card">
+          <h2>Online δωμάτιο</h2>
+          <div class="row">
+            <button id="createRoomBtn" class="primary">Δημιουργία Δωματίου</button>
+          </div>
+          <div style="margin-top:10px">
+            <input id="roomCodeInput" maxlength="4" placeholder="1234" inputmode="numeric" />
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button id="joinRoomBtn" class="secondary">Είσοδος με Κωδικό</button>
+          </div>
+          <p class="note">Ο δεύτερος παίκτης μπαίνει από οπουδήποτε με τον ίδιο 4ψήφιο κωδικό, όταν ο server είναι online.</p>
+        </div>
+      </div>
+
+      <div id="statusBox" class="status">Έτοιμο.</div>
+    </div>
+  </div>
+
+  <div id="gameMount">
+    <div class="topbar" id="topbar">
+      <div class="pill" id="modePill">Λειτουργία: Τοπικά</div>
+      <div class="pill" id="roomPill">Δωμάτιο: ----</div>
+      <button id="backBtn" style="width:auto">Επιστροφή</button>
+    </div>
+    <div id="gameContainer"></div>
+  </div>
+
+  <script>
+    const statusBox = document.getElementById('statusBox');
+    const roomCodeInput = document.getElementById('roomCodeInput');
+    const modePill = document.getElementById('modePill');
+    const roomPill = document.getElementById('roomPill');
+    const menuView = document.getElementById('menuView');
+    const gameMount = document.getElementById('gameMount');
+    const gameContainer = document.getElementById('gameContainer');
+    const topbar = document.getElementById('topbar');
+
+    let socket = null;
+    let roomCode = null;
+
+    function setStatus(text) {
+      statusBox.textContent = text;
+    }
+
+    function showGame(modeLabel) {
+      menuView.style.display = 'none';
+      gameMount.style.display = 'block';
+      topbar.style.display = 'flex';
+      modePill.textContent = 'Λειτουργία: ' + modeLabel;
+      roomPill.textContent = 'Δωμάτιο: ' + (roomCode || '----');
+      if (!gameContainer.dataset.loaded) {
+        const iframe = document.createElement('iframe');
+        iframe.src = 'game.html';
+        gameContainer.appendChild(iframe);
+        gameContainer.dataset.loaded = '1';
+      }
+    }
+
+    function normalizeCode(value) {
+      return (value || '').replace(/\D/g, '').slice(0, 4);
+    }
+
+    function connectSocket() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = window.CHECKERS_WS_URL || `${proto}//${location.host}`;
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        setStatus('Συνδέθηκες στον online server.');
+      };
+
+      socket.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'room_created') {
+          roomCode = msg.code;
+          setStatus('Το δωμάτιο δημιουργήθηκε. Δώσε τον κωδικό ' + msg.code + ' στον φίλο σου.');
+          showGame('Online Host');
+        } else if (msg.type === 'room_joined') {
+          roomCode = msg.code;
+          setStatus('Μπήκες στο δωμάτιο ' + msg.code + '.');
+          showGame('Online Guest');
+        } else if (msg.type === 'guest_joined') {
+          setStatus('Ο δεύτερος παίκτης μπήκε στο δωμάτιο ' + msg.code + '.');
+        } else if (msg.type === 'error') {
+          setStatus('Σφάλμα: ' + msg.message);
+        } else if (msg.type === 'peer_left') {
+          setStatus('Ο άλλος παίκτης αποσυνδέθηκε.');
+        }
+      };
+
+      socket.onclose = () => {
+        if (roomCode) setStatus('Η σύνδεση με τον server έκλεισε.');
+      };
+    }
+
+    document.getElementById('playAiBtn').addEventListener('click', () => {
+      roomCode = null;
+      showGame('Με AI');
+      setStatus('Άνοιξε το παιχνίδι σε λειτουργία AI.');
+    });
+
+    document.getElementById('playLocalBtn').addEventListener('click', () => {
+      roomCode = null;
+      showGame('2 Παίκτες Τοπικά');
+      setStatus('Άνοιξε το παιχνίδι σε τοπική λειτουργία.');
+    });
+
+    document.getElementById('createRoomBtn').addEventListener('click', () => {
+      if (!socket || socket.readyState > 1) connectSocket();
+      const waitSend = () => {
+        if (socket.readyState === 1) socket.send(JSON.stringify({ type:'create_room' }));
+        else setTimeout(waitSend, 150);
+      };
+      waitSend();
+      setStatus('Δημιουργία δωματίου...');
+    });
+
+    document.getElementById('joinRoomBtn').addEventListener('click', () => {
+      const code = normalizeCode(roomCodeInput.value);
+      roomCodeInput.value = code;
+      if (code.length !== 4) {
+        setStatus('Βάλε έγκυρο 4ψήφιο κωδικό.');
+        return;
+      }
+      if (!socket || socket.readyState > 1) connectSocket();
+      const waitSend = () => {
+        if (socket.readyState === 1) socket.send(JSON.stringify({ type:'join_room', code }));
+        else setTimeout(waitSend, 150);
+      };
+      waitSend();
+      setStatus('Προσπάθεια εισόδου στο δωμάτιο ' + code + '...');
+    });
+
+    document.getElementById('backBtn').addEventListener('click', () => {
+      location.reload();
+    });
+  </script>
+</body>
+</html>
